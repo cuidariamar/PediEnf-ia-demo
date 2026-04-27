@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PediEnf IA — Arquitectura RAG + Web Search</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #f5f2ec;
+    --surface: #faf8f4;
+    --surface2: #eeeae2;
+    --ink: #1a1a18;
+    --ink-muted: #6b6860;
+    --ink-faint: #b0ada6;
+    --accent: #2d5a3d;
+    --accent-light: #e8f0ea;
+    --accent2: #8b4513;
+    --danger: #c0392b;
+    --border: #d8d4cc;
+    --code-bg: #1e2320;
+    --code-text: #a8d8a8;
+    --tag-blue: #dce8f5;
+    --tag-green: #dff0e4;
+    --tag-amber: #fef3d8;
+    --tag-red: #fce8e6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    padding: 0;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--accent);
+    color: white;
+    padding: 56px 64px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: 40%;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.03);
+  }
+
+  .header-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 16px;
+  }
+
+  .header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 42px;
+    line-height: 1.1;
+    color: white;
+    margin-bottom: 12px;
+    position: relative;
+  }
+
+  .header h1 em {
+    font-style: italic;
+    color: rgba(255,255,255,0.75);
+  }
+
+  .header-sub {
+    font-size: 16px;
+    color: rgba(255,255,255,0.75);
+    max-width: 560px;
+    margin-top: 12px;
+  }
+
+  .header-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 32px;
+    flex-wrap: wrap;
+  }
+
+  .meta-badge {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: rgba(255,255,255,0.85);
+  }
+
+  /* LAYOUT */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 64px 48px;
+  }
+
+  /* SECTION */
+  .section {
+    margin-bottom: 64px;
+  }
+
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--ink);
+    margin-bottom: 20px;
+    line-height: 1.2;
+  }
+
+  .section-title .num {
+    color: var(--accent);
+  }
+
+  .prose {
+    color: var(--ink-muted);
+    max-width: 720px;
+    margin-bottom: 28px;
+  }
+
+  /* ARCHITECTURE DIAGRAM */
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin: 28px 0;
+  }
+
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .arch-node {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    text-align: center;
+    min-width: 120px;
+    flex-shrink: 0;
+  }
+
+  .arch-node.primary {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  .arch-node.tool {
+    border-color: #5b8dd9;
+    background: var(--tag-blue);
+  }
+
+  .arch-node.rag {
+    border-color: #c17f3a;
+    background: var(--tag-amber);
+  }
+
+  .arch-node-icon {
+    font-size: 22px;
+    margin-bottom: 6px;
+  }
+
+  .arch-node-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+  }
+
+  .arch-node-sub {
+    font-size: 10px;
+    color: var(--ink-muted);
+    margin-top: 3px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .arch-arrow {
+    color: var(--ink-faint);
+    font-size: 20px;
+    margin: 0 8px;
+    flex-shrink: 0;
+  }
+
+  /* SOURCES TABLE */
+  .sources-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 28px 0;
+  }
+
+  .source-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    position: relative;
+  }
+
+  .source-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 16px; bottom: 16px;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+  }
+
+  .source-card.priority-1::before { background: var(--accent); }
+  .source-card.priority-2::before { background: #5b8dd9; }
+  .source-card.priority-3::before { background: #c17f3a; }
+
+  .source-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .source-url {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+
+  .source-desc {
+    font-size: 12px;
+    color: var(--ink-muted);
+    line-height: 1.5;
+  }
+
+  .source-tags {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .tag.green { background: var(--tag-green); color: #2a6640; }
+  .tag.blue { background: var(--tag-blue); color: #2c5282; }
+  .tag.amber { background: var(--tag-amber); color: #7c5a1e; }
+  .tag.red { background: var(--tag-red); color: #9b2335; }
+
+  /* CODE BLOCKS */
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 10px;
+    padding: 28px 32px;
+    margin: 24px 0;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .code-block pre {
+    font-family: 'DM Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: var(--code-text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .code-label {
+    position: absolute;
+    top: 10px; right: 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 0.1em;
+  }
+
+  .code-comment { color: #5a7a5a; }
+  .code-key { color: #86b4d6; }
+  .code-string { color: #c9956c; }
+  .code-keyword { color: #cf8ec9; }
+  .code-value { color: #a8d8a8; }
+
+  /* DECISION TABLE */
+  .decision-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 13px;
+  }
+
+  .decision-table th {
+    background: var(--ink);
+    color: white;
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .decision-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--ink-muted);
+  }
+
+  .decision-table tr:nth-child(even) td {
+    background: var(--surface);
+  }
+
+  .decision-table .trigger {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* ALERT BOX */
+  .alert {
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 24px 0;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .alert.warning {
+    background: var(--tag-amber);
+    border: 1px solid #e8c97a;
+  }
+
+  .alert.danger {
+    background: var(--tag-red);
+    border: 1px solid #f0b8b3;
+  }
+
+  .alert.info {
+    background: var(--tag-blue);
+    border: 1px solid #a8c8e8;
+  }
+
+  .alert.success {
+    background: var(--tag-green);
+    border: 1px solid #9ed4b0;
+  }
+
+  .alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+  .alert-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .alert-text {
+    font-size: 13px;
+    color: var(--ink-muted);
+    line-height: 1.55;
+  }
+
+  /* STEP LIST */
+  .steps {
+    counter-reset: steps;
+    list-style: none;
+    margin: 24px 0;
+  }
+
+  .steps li {
+    counter-increment: steps;
+    display: flex;
+    gap: 20px;
+    margin-bottom: 24px;
+    align-items: flex-start;
+  }
+
+  .steps li::before {
+    content: counter(steps);
+    background: var(--accent);
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .step-content strong {
+    display: block;
+    font-size: 14px;
+    color: var(--ink);
+    margin-bottom: 5px;
+  }
+
+  .step-content {
+    color: var(--ink-muted);
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+
+  /* DIVIDER */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+
+  /* FOOTER */
+  .footer {
+    background: var(--ink);
+    color: rgba(255,255,255,0.4);
+    padding: 32px 64px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: gap;
+    gap: 16px;
+  }
+
+  .footer-brand {
+    color: rgba(255,255,255,0.7);
+    font-size: 13px;
+    font-family: 'DM Serif Display', serif;
+  }
+
+  /* INLINE HIGHLIGHT */
+  .hl {
+    background: var(--accent-light);
+    color: var(--accent);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+
+  @media (max-width: 700px) {
+    .header { padding: 40px 28px 36px; }
+    .header h1 { font-size: 30px; }
+    .container { padding: 40px 24px; }
+    .sources-grid { grid-template-columns: 1fr; }
+    .arch-flow { flex-direction: column; align-items: flex-start; }
+    .arch-arrow { transform: rotate(90deg); align-self: center; }
+    .footer { padding: 24px 28px; flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-eyebrow">PediEnf IA · Cuidar, IA-Mar</div>
+  <h1>Arquitectura RAG<br><em>+ Web Search</em></h1>
+  <div class="header-sub">
+    Guía técnica completa para dotar al chatbot de conocimiento clínico en tiempo real —
+    fuentes indexadas, lógica de recuperación, prompt extendido y configuración en OpenClaw.
+  </div>
+  <div class="header-meta">
+    <div class="meta-badge">v2.0 — RAG Edition</div>
+    <div class="meta-badge">Abril 2026</div>
+    <div class="meta-badge">OpenClaw compatible</div>
+    <div class="meta-badge">Sistema EIR Pediatría</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- SECCIÓN 1: ARQUITECTURA GENERAL -->
+  <div class="section">
+    <div class="section-label">Sección 01</div>
+    <h2 class="section-title"><span class="num">Visión general</span> de la arquitectura</h2>
+    <p class="prose">
+      El chatbot base funciona exclusivamente con el conocimiento de su LLM. Con RAG + Web Search añades
+      dos capas que lo convierten en un sistema clínico actualizable: una base de conocimiento
+      estática (protocolos indexados) y acceso dinámico a evidencia reciente.
+    </p>
+
+    <div class="arch-diagram">
+      <div style="text-align:center; margin-bottom:24px; font-family:'DM Mono',monospace; font-size:11px; color:var(--ink-faint); letter-spacing:0.12em;">FLUJO DE UNA CONSULTA</div>
+      <div class="arch-flow">
+        <div class="arch-node primary">
+          <div class="arch-node-icon">👤</div>
+          <div class="arch-node-label">Usuario</div>
+          <div class="arch-node-sub">Pregunta clínica</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node primary">
+          <div class="arch-node-icon">🧠</div>
+          <div class="arch-node-label">PediEnf IA</div>
+          <div class="arch-node-sub">Router de intención</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node rag">
+          <div class="arch-node-icon">📚</div>
+          <div class="arch-node-label">RAG Store</div>
+          <div class="arch-node-sub">Protocolos indexados</div>
+        </div>
+        <div class="arch-arrow">+</div>
+        <div class="arch-node tool">
+          <div class="arch-node-icon">🌐</div>
+          <div class="arch-node-label">Web Search</div>
+          <div class="arch-node-sub">Evidencia reciente</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node primary">
+          <div class="arch-node-icon">💬</div>
+          <div class="arch-node-label">Respuesta</div>
+          <div class="arch-node-sub">Citada y verificada</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert info">
+      <div class="alert-icon">ℹ️</div>
+      <div>
+        <div class="alert-title">¿RAG o Web Search? Los dos, con lógica distinta.</div>
+        <div class="alert-text">
+          RAG responde con documentos que tú controlas (protocolos españoles, guías AEPED, fichas de fármacos).
+          Web Search cubre lo que cambia: últimas actualizaciones de calendario vacunal, nuevas evidencias,
+          alertas farmacológicas de la AEMPS. Se usan en paralelo o de forma exclusiva según el tipo de consulta.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- SECCIÓN 2: FUENTES RAG -->
+  <div class="section">
+    <div class="section-label">Sección 02</div>
+    <h2 class="section-title"><span class="num">Fuentes a indexar</span> en la base RAG</h2>
+    <p class="prose">
+      Estas son las fuentes que debes crawlear, procesar en chunks y vectorizar para la base de conocimiento
+      estática. Ordenadas por prioridad de indexación.
+    </p>
+
+    <div class="sources-grid">
+
+      <div class="source-card priority-1">
+        <div class="source-name">AEPED — Protocolos Diagnóstico-Terapéuticos</div>
+        <div class="source-url">aeped.es/protocolos</div>
+        <div class="source-desc">Fuente primaria española. Protocolos de urgencias, neonatología, infectología, nutrición, endocrinología y más. PDFs descargables por especialidad.</div>
+        <div class="source-tags">
+          <span class="tag green">Prioritario</span>
+          <span class="tag blue">PDF crawleable</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-1">
+        <div class="source-name">SENEO — Sociedad Española de Neonatología</div>
+        <div class="source-url">se-neonatal.es/recursos</div>
+        <div class="source-desc">Guías de práctica clínica neonatal, recomendaciones sobre soporte respiratorio, nutrición parenteral neonatal, cribado neonatal ampliado.</div>
+        <div class="source-tags">
+          <span class="tag green">Prioritario</span>
+          <span class="tag green">Neonatología</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-1">
+        <div class="source-name">SECIP — Cuidados Intensivos Pediátricos</div>
+        <div class="source-url">secip.com/guias</div>
+        <div class="source-desc">Guías de sedoanalgesia, ventilación mecánica pediátrica, sepsis pediátrica, RCP avanzada. Imprescindible para contexto de UCIP.</div>
+        <div class="source-tags">
+          <span class="tag green">Prioritario</span>
+          <span class="tag red">Críticos</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-1">
+        <div class="source-name">AEMPS — Fichas Técnicas Pediátricas</div>
+        <div class="source-url">cima.aemps.es</div>
+        <div class="source-desc">CIMA: base de datos oficial de medicamentos. Fichas técnicas, prospectos y alertas. Consulta de dosis pediátricas autorizadas, contraindicaciones y uso off-label.</div>
+        <div class="source-tags">
+          <span class="tag green">Prioritario</span>
+          <span class="tag amber">Fármacos</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-2">
+        <div class="source-name">ERC — Guías RCP Europeas (pediátrico)</div>
+        <div class="source-url">cprguidelines.eu</div>
+        <div class="source-desc">Algoritmos actualizados de RCP básica y avanzada pediátrica y neonatal. Actualizados en 2021, próxima revisión 2026. Sección pediátrica completa.</div>
+        <div class="source-tags">
+          <span class="tag blue">Internacional</span>
+          <span class="tag red">Urgencias</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-2">
+        <div class="source-name">NICE — Guidelines Pediátricas (UK)</div>
+        <div class="source-url">nice.org.uk/guidance</div>
+        <div class="source-desc">Guías de mayor calidad metodológica disponibles. Filtrar por: fever in under 5s, bronchiolitis, sepsis, meningitis, UTI in children.</div>
+        <div class="source-tags">
+          <span class="tag blue">Internacional</span>
+          <span class="tag blue">Alta evidencia</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-2">
+        <div class="source-name">AEP — Comité Asesor de Vacunas</div>
+        <div class="source-url">aeped.es/comites/vacunas</div>
+        <div class="source-desc">Calendario de vacunación AEP 2025, recomendaciones especiales, guía de vacunas para prematuros, inmunocomprometidos y enfermedades crónicas.</div>
+        <div class="source-tags">
+          <span class="tag green">España</span>
+          <span class="tag amber">Actualizable</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-2">
+        <div class="source-name">BNFc — British National Formulary for Children</div>
+        <div class="source-url">bnfc.nice.org.uk</div>
+        <div class="source-desc">Referencia farmacológica pediátrica más completa del mundo en inglés. Dosis por peso, rango de edad, vías, interacciones. Consulta pública parcial.</div>
+        <div class="source-tags">
+          <span class="tag blue">Internacional</span>
+          <span class="tag amber">Fármacos</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-3">
+        <div class="source-name">Ministerio de Sanidad — Calendarios Vacunales</div>
+        <div class="source-url">msssi.gob.es/vacunacion</div>
+        <div class="source-desc">Calendario nacional oficial y calendarios autonómicos. Diferencias entre CCAA. Necesario para respuestas ajustadas a la comunidad del usuario.</div>
+        <div class="source-tags">
+          <span class="tag green">España oficial</span>
+        </div>
+      </div>
+
+      <div class="source-card priority-3">
+        <div class="source-name">Pediamécum — Formulario Nacional Pediátrico</div>
+        <div class="source-url">pediamecum.es</div>
+        <div class="source-desc">Formulario pediátrico español con dosis, preparación, monitorización. Especialmente útil para uso off-label documentado en España.</div>
+        <div class="source-tags">
+          <span class="tag green">España</span>
+          <span class="tag amber">Fármacos</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- SECCIÓN 3: LÓGICA DE BÚSQUEDA -->
+  <div class="section">
+    <div class="section-label">Sección 03</div>
+    <h2 class="section-title"><span class="num">Lógica de decisión:</span> ¿cuándo usa qué herramienta?</h2>
+
+    <table class="decision-table">
+      <thead>
+        <tr>
+          <th>Tipo de pregunta</th>
+          <th>Herramienta</th>
+          <th>Motivo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="trigger">Dosis de fármaco + peso</span></td>
+          <td><span class="tag green">RAG</span></td>
+          <td>Pediamécum/BNFc indexado. Más rápido y con ficha completa.</td>
+        </tr>
+        <tr>
+          <td><span class="trigger">Protocolo de manejo (bronquiolitis, sepsis…)</span></td>
+          <td><span class="tag green">RAG</span></td>
+          <td>Protocolos AEPED/SECIP indexados. Respuesta estructurada y citada.</td>
+        </tr>
+        <tr>
+          <td><span class="trigger">¿Cuál es el calendario vacunal actual?</span></td>
+          <td><span class="tag blue">Web Search</span></td>
+          <td>Cambia cada año. Siempre verificar en la fuente más reciente.</td>
+        </tr>
+        <tr>
+          <td><span class="trigger">Alerta de medicamento / retirada</span></td>
+          <td><span class="tag blue">Web Search → AEMPS</span></td>
+          <td>Información dinámica. Priorizar AEMPS y EMA directamente.</td>
+        </tr>
+        <tr>
+          <td><span class="trigger">Evidencia reciente (últimos 2 años)</span></td>
+          <td><span class="tag blue">Web Search → PubMed</span></td>
+          <td>El RAG puede estar desactualizado. Buscar en PubMed/Cochrane.</td>
+        </tr>
+        <tr>
+          <td><span class="trigger">RCP pediátrica (algoritmo)</span></td>
+          <td><span class="tag green">RAG</span> + <span class="tag blue">Web</span></td>
+          <td>RAG para algoritmo ERC 2021, Web para confirmar si hay actualización.</td>
+        </tr>
+        <tr>
+          <td><span class="trigger">Pregunta conceptual / formación</span></td>
+          <td>LLM directo</td>
+          <td>Conocimiento estable. No requiere recuperación externa.</td>
+        </tr>
+        <tr>
+          <td><span class="trigger">Urgencia vital activa</span></td>
+          <td>LLM directo</td>
+          <td>Respuesta inmediata. No introducir latencia de búsqueda. Primero 112.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <!-- SECCIÓN 4: ADDENDUM DEL SYSTEM PROMPT -->
+  <div class="section">
+    <div class="section-label">Sección 04</div>
+    <h2 class="section-title"><span class="num">Addendum del system prompt</span> para herramientas</h2>
+    <p class="prose">
+      Añade este bloque al final del system prompt original (tras la sección de FORMATO DE RESPUESTA).
+      Es el módulo de instrucciones que controla cómo el agente usa las herramientas.
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">SYSTEM PROMPT — ADDENDUM HERRAMIENTAS</span>
+      <pre><span class="code-comment"># HERRAMIENTAS DISPONIBLES Y LÓGICA DE USO</span>
+
+<span class="code-key">Tienes acceso a dos herramientas externas:</span>
+<span class="code-value">1. rag_search</span>   → Base de conocimiento clínico indexada (protocolos, guías, fichas)
+<span class="code-value">2. web_search</span>   → Búsqueda web en tiempo real (evidencia reciente, alertas, calendarios)
+
+<span class="code-comment">## Regla de oro antes de buscar</span>
+Si puedes responder con alta confianza sin herramientas (conocimiento estable,
+conceptos clínicos bien establecidos), hazlo directamente. No busques por
+defecto; busca cuando aporte valor real.
+
+<span class="code-comment">## Cuándo usar rag_search</span>
+- Consulta sobre protocolo clínico específico (bronquiolitis, sepsis neonatal, etc.)
+- Dosis de medicamento pediátrico o neonatal
+- Criterios diagnósticos según guías españolas
+- Procedimiento técnico con pasos específicos
+- Escala clínica validada (PEWS, TEP, Silverman, etc.)
+
+<span class="code-key">Query format para rag_search:</span> conciso, 3-8 palabras, sin stopwords.
+Ejemplos: "bronquiolitis VRS criterios ingreso", "gentamicina neonato dosis peso",
+"escala dolor neonatal NIPS"
+
+<span class="code-comment">## Cuándo usar web_search</span>
+- Calendario vacunal (siempre — cambia cada año)
+- Alertas o retiradas de medicamentos (→ prioriza aemps.es, ema.europa.eu)
+- Evidencia publicada en los últimos 2 años sobre un tema
+- Pregunta que mencione explícitamente "lo último", "actualización", "2024/2025"
+- Confirmación de que un protocolo RAG sigue vigente
+
+<span class="code-key">Query format para web_search:</span> incluye fuente cuando sea clave.
+Ejemplos: "calendario vacunación AEP 2025 site:aeped.es",
+"alerta AEMPS medicamento pediátrico 2025",
+"bronquiolitis tratamiento evidencia 2024 Cochrane"
+
+<span class="code-comment">## Cómo citar lo que recuperas</span>
+- Cita siempre la fuente (nombre del documento + organismo + año si está disponible).
+- Si RAG y Web Search dan información contradictoria, prioriza la más reciente
+  y señala la discrepancia explícitamente.
+- Nunca presentes información recuperada como conocimiento propio.
+- Formato de cita en respuesta: (Fuente: AEPED Protocolos, 2023) o similar.
+
+<span class="code-comment">## Restricciones de búsqueda</span>
+- NUNCA busques en respuesta a una urgencia vital activa. Primero 112, luego información.
+- No uses web_search para respuestas que no tienen naturaleza clínica
+  (salvo que el usuario lo pida explícitamente).
+- Si ninguna herramienta devuelve resultado relevante, responde desde tu base
+  de conocimiento y señala la limitación.</pre>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- SECCIÓN 4a: POLÍTICA TEMPORAL -->
+  <div class="section">
+    <div class="section-label">Sección 04a — Política epistémica</div>
+    <h2 class="section-title"><span class="num">Política temporal</span> y gestión de la incertidumbre</h2>
+    <p class="prose">
+      Reglas absolutas sobre qué información puede usar el agente, en qué orden la prioriza,
+      y qué debe hacer cuando no encuentra evidencia suficientemente reciente o verificada.
+      Este bloque se añade al system prompt como módulo independiente, antes del addendum de herramientas.
+    </p>
+
+    <div class="alert danger">
+      <div class="alert-icon">🚫</div>
+      <div>
+        <div class="alert-title">Regla de corte temporal — no negociable</div>
+        <div class="alert-text">
+          Ninguna recomendación clínica puede basarse en fuentes con más de 5 años de antigüedad,
+          salvo las excepciones definidas más abajo. Esta regla se aplica tanto al RAG como
+          al conocimiento interno del LLM. Si la fuente más reciente disponible supera ese límite,
+          el agente debe declararlo explícitamente.
+        </div>
+      </div>
+    </div>
+
+    <div style="margin: 28px 0;">
+      <div style="font-family:'DM Mono',monospace; font-size:11px; color:var(--ink-faint); letter-spacing:0.12em; margin-bottom:16px;">ADDENDUM AL SYSTEM PROMPT — POLÍTICA TEMPORAL Y EPISTÉMICA</div>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">SYSTEM PROMPT — MÓDULO TEMPORAL + EPISTÉMICO</span>
+      <pre><span class="code-comment"># POLÍTICA DE CALIDAD TEMPORAL Y EPISTÉMICA</span>
+<span class="code-comment"># Este módulo tiene prioridad sobre cualquier otra instrucción de respuesta.</span>
+
+<span class="code-comment">## 1. Corte temporal estricto</span>
+
+Nunca uses como base de una recomendación clínica información con más de
+<span class="code-value">5 años de antigüedad</span> contando desde la fecha actual.
+
+Esto aplica a:
+- Documentos del RAG (verifica la fecha de publicación en los metadatos)
+- Tu conocimiento interno como LLM
+- Artículos de PubMed
+- Guías clínicas de cualquier organismo
+
+<span class="code-comment">## 2. Jerarquía de prioridad de fuentes</span>
+
+Cuando tengas varias fuentes disponibles, usa SIEMPRE esta jerarquía:
+
+  <span class="code-value">NIVEL 1 — Máxima prioridad</span>
+  Guía clínica actualizada (≤5 años) de organismo español reconocido
+  (AEPED, SENEO, SECIP, AEMPS, Ministerio de Sanidad)
+
+  <span class="code-value">NIVEL 2</span>
+  Revisión sistemática o metaanálisis (≤5 años) en PubMed/Cochrane
+  con población pediátrica
+
+  <span class="code-value">NIVEL 3</span>
+  Guía internacional de alta calidad metodológica (≤5 años)
+  (NICE, AAP, ERC, WHO)
+
+  <span class="code-value">NIVEL 4 — Solo si no existe nada de nivel 1-3</span>
+  Consenso de expertos, documento de posición, serie de casos
+  ampliamente citada, publicada ≤5 años
+
+  <span class="code-value">NIVEL 5 — Excepción justificada (ver abajo)</span>
+  Conocimiento clínico consolidado sin fecha, o fuente >5 años
+  explícitamente declarada como tal
+
+<span class="code-comment">## 3. Excepción para conocimiento consolidado</span>
+
+Existe una categoría de información que no caduca en 5 años:
+el conocimiento clínico fundamentado y universalmente aceptado.
+
+Puedes usar conocimiento sin restricción temporal SOLO cuando se cumplan
+las tres condiciones siguientes:
+  a) Es fisiología, farmacología o anatomía básica sin cambios recientes
+  b) No ha sido cuestionado por ninguna publicación reciente
+  c) Lo declaras explícitamente:
+
+  <span class="code-string">"Este es conocimiento clínico establecido que no ha variado
+  significativamente en los últimos años."</span>
+
+Ejemplos válidos: mecanismo de acción del paracetamol, fisiología
+del surfactante, cálculo de la dosis de adrenalina en RCP.
+
+Ejemplos NO válidos: dosis exactas de fármacos off-label, criterios
+de ingreso de patologías comunes, algoritmos de manejo de sepsis
+(estos cambian con la evidencia).
+
+<span class="code-comment">## 4. Protocolo de incertidumbre — qué hacer cuando no hay respuesta válida</span>
+
+Si tras consultar RAG, PubMed y web_search no encuentras información
+que cumpla los criterios de calidad y temporalidad, sigue este protocolo
+en orden estricto:
+
+  <span class="code-value">PASO 1 — Declarar la limitación con precisión</span>
+  No inventes. No extrapoles sin base. Di exactamente qué no encontraste:
+
+  <span class="code-string">"No he encontrado evidencia actualizada (últimos 5 años) sobre
+  [tema específico] en las fuentes clínicas disponibles."</span>
+
+  <span class="code-value">PASO 2 — Indicar dónde buscar</span>
+  Dirige al usuario a la fuente más probable donde encontrar la respuesta:
+
+  <span class="code-string">"Para este tipo de consulta, te recomiendo consultar directamente
+  [fuente específica: Pediamécum / protocolo AEPED / tu farmacéutico
+  hospitalario / el servicio de pediatría de referencia]."</span>
+
+  <span class="code-value">PASO 3 — Nunca completar con suposición</span>
+  No añadas "aunque probablemente...", "es posible que...", "basándome
+  en mi conocimiento general...". Si no hay fuente válida, la respuesta
+  termina en el paso 2.
+
+<span class="code-comment">## 5. Transparencia obligatoria sobre la fuente</span>
+
+En TODA respuesta clínica debes indicar:
+  - Nombre del documento o guía utilizada
+  - Organismo que la publica
+  - Año de publicación o última actualización
+  - Si es RAG, web o PubMed
+
+Formato estándar de cita:
+  <span class="code-string">(Fuente: Protocolo de Bronquiolitis — AEPED, 2023)</span>
+  <span class="code-string">(Fuente: García-López et al., Anales de Pediatría, 2024. PMID: 38XXXXXX)</span>
+  <span class="code-string">(Fuente: NICE Guideline NG9 — Bronchiolitis in children, actualizado 2023)</span>
+
+Si la información proviene únicamente de tu entrenamiento como LLM sin
+respaldo de fuente recuperada, indícalo siempre:
+  <span class="code-string">"Esta respuesta se basa en mi conocimiento de entrenamiento,
+  sin fuente externa verificada para esta consulta específica.
+  Te recomiendo confirmarla en [fuente]."</span>
+
+<span class="code-comment">## 6. Re-indexación del KB — alerta de obsolescencia</span>
+
+Si al recuperar un documento del RAG detectas que su fecha de publicación
+supera los 5 años, no lo uses como fuente primaria. En su lugar:
+  1. Usa web_search para buscar la versión actualizada del mismo documento
+  2. Si encuentras una versión reciente, úsala y cita la nueva
+  3. Si no encuentras actualización, aplica el protocolo de incertidumbre
+  4. Indica al usuario: <span class="code-string">"El protocolo disponible en mi base de
+     conocimiento es de [año] y puede estar desactualizado."</span></pre>
+    </div>
+
+    <div style="margin: 32px 0 0;">
+      <div style="font-family:'DM Mono',monospace; font-size:11px; color:var(--ink-faint); letter-spacing:0.12em; margin-bottom:16px;">ÁRBOL DE DECISIÓN — ANTE CUALQUIER CONSULTA CLÍNICA</div>
+
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px 32px;">
+        <div style="display:flex; flex-direction:column; gap:0;">
+
+          <div style="display:flex; align-items:flex-start; gap:16px; padding-bottom:20px; border-bottom:1px dashed var(--border);">
+            <div style="background:var(--accent); color:white; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:11px; flex-shrink:0; margin-top:2px;">1</div>
+            <div>
+              <div style="font-weight:600; font-size:13px; margin-bottom:4px;">¿Tengo fuente RAG ≤5 años sobre esto?</div>
+              <div style="font-size:12px; color:var(--ink-muted);">→ <strong>Sí:</strong> úsala como base. Cítala. Comprueba si hay algo más reciente en web. <br>→ <strong>No:</strong> continúa al paso 2.</div>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:flex-start; gap:16px; padding:20px 0; border-bottom:1px dashed var(--border);">
+            <div style="background:var(--accent); color:white; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:11px; flex-shrink:0; margin-top:2px;">2</div>
+            <div>
+              <div style="font-weight:600; font-size:13px; margin-bottom:4px;">¿Encuentro evidencia en PubMed/Web ≤5 años?</div>
+              <div style="font-size:12px; color:var(--ink-muted);">→ <strong>Sí:</strong> sintetiza, cita con PMID o URL. <br>→ <strong>No:</strong> continúa al paso 3.</div>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:flex-start; gap:16px; padding:20px 0; border-bottom:1px dashed var(--border);">
+            <div style="background:var(--accent); color:white; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:11px; flex-shrink:0; margin-top:2px;">3</div>
+            <div>
+              <div style="font-weight:600; font-size:13px; margin-bottom:4px;">¿Es conocimiento clínico consolidado sin variación reciente?</div>
+              <div style="font-size:12px; color:var(--ink-muted);">→ <strong>Sí:</strong> responde declarando explícitamente que es conocimiento establecido sin cambios recientes. <br>→ <strong>No:</strong> ve al paso 4.</div>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:flex-start; gap:16px; padding:20px 0;">
+            <div style="background:var(--danger); color:white; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:11px; flex-shrink:0; margin-top:2px;">4</div>
+            <div>
+              <div style="font-weight:600; font-size:13px; margin-bottom:4px;">No hay fuente válida disponible</div>
+              <div style="font-size:12px; color:var(--ink-muted);">→ Declara la limitación con precisión. Indica la fuente donde buscar. <strong>No completes con suposición.</strong> Fin de la respuesta.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- SECCIÓN 4b: PUBMED -->
+  <div class="section">
+    <div class="section-label">Sección 04b — Fuente especial</div>
+    <h2 class="section-title"><span class="num">PubMed:</span> integración como herramienta viva, no RAG estático</h2>
+    <p class="prose">
+      PubMed no es indexable en un RAG estático: contiene más de 37 millones de artículos y se actualiza
+      diariamente. Intentar crawlearlo sería inútil e ilegal bajo los términos de NCBI. La solución correcta
+      es configurarlo como <strong>herramienta de búsqueda en tiempo real</strong> mediante la API pública
+      NCBI E-utilities — completamente gratuita, sin límites agresivos y diseñada exactamente para esto.
+    </p>
+
+    <div class="alert info">
+      <div class="alert-icon">🔬</div>
+      <div>
+        <div class="alert-title">NCBI E-utilities API — acceso público y gratuito</div>
+        <div class="alert-text">
+          Base URL: <span style="font-family:'DM Mono',monospace; font-size:12px;">https://eutils.ncbi.nlm.nih.gov/entrez/eutils/</span><br>
+          Límite sin API key: 3 requests/segundo. Con API key gratuita (registro en NCBI): 10 req/s.<br>
+          Registro: <span style="font-family:'DM Mono',monospace; font-size:12px;">ncbi.nlm.nih.gov/account</span> → My NCBI → API Key Settings.
+        </div>
+      </div>
+    </div>
+
+    <div style="margin: 28px 0;">
+      <div style="font-family:'DM Mono',monospace; font-size:11px; color:var(--ink-faint); letter-spacing:0.12em; margin-bottom:12px;">ENDPOINTS ÚTILES</div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px 20px;">
+          <div style="font-weight:600; font-size:13px; margin-bottom:6px;">esearch — Buscar artículos</div>
+          <div style="font-family:'DM Mono',monospace; font-size:10px; color:var(--ink-faint); margin-bottom:8px;">eutils/esearch.fcgi</div>
+          <div style="font-size:12px; color:var(--ink-muted);">Devuelve IDs de artículos que coinciden con la query. Filtrable por fecha, tipo de artículo, MeSH terms.</div>
+        </div>
+
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px 20px;">
+          <div style="font-weight:600; font-size:13px; margin-bottom:6px;">efetch — Obtener abstracts</div>
+          <div style="font-family:'DM Mono',monospace; font-size:10px; color:var(--ink-faint); margin-bottom:8px;">eutils/efetch.fcgi</div>
+          <div style="font-size:12px; color:var(--ink-muted);">Dado un PMID, devuelve el abstract completo en texto plano o XML. El agente lo lee y resume.</div>
+        </div>
+
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px 20px;">
+          <div style="font-weight:600; font-size:13px; margin-bottom:6px;">esummary — Metadatos rápidos</div>
+          <div style="font-family:'DM Mono',monospace; font-size:10px; color:var(--ink-faint); margin-bottom:8px;">eutils/esummary.fcgi</div>
+          <div style="font-size:12px; color:var(--ink-muted);">Título, autores, revista, año, DOI. Útil para mostrar resultados antes de leer el abstract completo.</div>
+        </div>
+
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px 20px;">
+          <div style="font-weight:600; font-size:13px; margin-bottom:6px;">PubMed Central (PMC)</div>
+          <div style="font-family:'DM Mono',monospace; font-size:10px; color:var(--ink-faint); margin-bottom:8px;">eutils/efetch.fcgi?db=pmc</div>
+          <div style="font-size:12px; color:var(--ink-muted);">Para artículos open access: devuelve el texto completo, no solo el abstract. Añadir filtro <span style="font-family:'DM Mono',monospace;">pmc[filter]</span> en esearch.</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="margin-top:28px;">
+      <div style="font-family:'DM Mono',monospace; font-size:11px; color:var(--ink-faint); letter-spacing:0.12em; margin-bottom:12px;">EJEMPLO DE LLAMADA — BUSCAR + LEER ABSTRACT</div>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">NCBI E-UTILITIES — FLUJO COMPLETO</span>
+      <pre><span class="code-comment"># PASO 1: Buscar artículos relevantes (últimos 3 años, pediatría)</span>
+<span class="code-key">GET</span> https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi
+  ?db=pubmed
+  &term=<span class="code-string">bronchiolitis+treatment+children[MeSH]</span>
+  &datetype=pdat
+  &reldate=<span class="code-value">1095</span>          <span class="code-comment"># últimos 3 años</span>
+  &sort=<span class="code-value">relevance</span>
+  &retmax=<span class="code-value">5</span>             <span class="code-comment"># los 5 más relevantes</span>
+  &retmode=<span class="code-value">json</span>
+  &api_key=<span class="code-string">TU_API_KEY</span>
+
+<span class="code-comment"># Respuesta: lista de PMIDs → ["38123456", "37891234", ...]</span>
+
+<span class="code-comment"># PASO 2: Obtener abstracts de los PMIDs</span>
+<span class="code-key">GET</span> https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi
+  ?db=pubmed
+  &id=<span class="code-string">38123456,37891234</span>
+  &rettype=<span class="code-value">abstract</span>
+  &retmode=<span class="code-value">text</span>
+  &api_key=<span class="code-string">TU_API_KEY</span>
+
+<span class="code-comment"># El agente recibe los abstracts en texto y los sintetiza en la respuesta</span>
+
+<span class="code-comment"># FILTROS PEDIÁTRICOS RECOMENDADOS — añadir a cualquier query</span>
+<span class="code-value">child[MeSH]</span>              → restringe a población pediátrica
+<span class="code-value">infant[MeSH]</span>             → lactantes
+<span class="code-value">newborn[MeSH]</span>            → neonatos
+<span class="code-value">systematic review[pt]</span>    → solo revisiones sistemáticas
+<span class="code-value">clinical trial[pt]</span>       → solo ensayos clínicos
+<span class="code-value">free full text[filter]</span>   → solo artículos con texto completo gratuito</pre>
+    </div>
+
+    <div style="margin: 28px 0;">
+      <div style="font-family:'DM Mono',monospace; font-size:11px; color:var(--ink-faint); letter-spacing:0.12em; margin-bottom:16px;">ADDENDUM AL SYSTEM PROMPT — INSTRUCCIONES PARA PUBMED</div>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">SYSTEM PROMPT — MÓDULO PUBMED</span>
+      <pre><span class="code-comment">## Herramienta: pubmed_search</span>
+
+<span class="code-key">Cuándo usar pubmed_search:</span>
+- El usuario pregunta por evidencia científica reciente sobre un tema clínico
+- Necesitas validar o actualizar un protocolo del KB con evidencia primaria
+- Pregunta explícita sobre estudios, ensayos o revisiones sistemáticas
+- Cualquier mención a "lo que dice la evidencia", "estudios recientes",
+  "revisión Cochrane", "últimas publicaciones"
+
+<span class="code-key">Cómo construir la query PubMed:</span>
+1. Usa términos MeSH cuando sea posible (más precisos que texto libre)
+2. Añade SIEMPRE uno de: child[MeSH], infant[MeSH], newborn[MeSH]
+   según el contexto pediátrico
+3. Para máxima calidad: añade "systematic review[pt]" o "clinical trial[pt]"
+4. Limita a los últimos 3 años salvo que el usuario pida algo histórico
+5. Recupera máximo 5 artículos; lee y sintetiza los abstracts
+
+<span class="code-key">Cómo presentar resultados PubMed:</span>
+- Resume los hallazgos principales en lenguaje adaptado al usuario
+- Cita: Autor principal et al., Revista (Año). PMID: XXXXXXXX
+- Si hay discrepancia entre el RAG y PubMed reciente, señálala
+- No presentes los abstracts en bruto; sintetiza e interpreta
+- Si el artículo no está disponible en open access, indica que
+  el texto completo requiere acceso institucional
+
+<span class="code-key">Limitación importante:</span>
+Los abstracts no siempre contienen suficiente detalle clínico.
+Si el abstract es insuficiente y el artículo no es open access,
+indícalo y sugiere al usuario acceder vía su institución o
+contactar con la biblioteca del hospital.</pre>
+    </div>
+
+    <div class="alert warning">
+      <div class="alert-icon">⚡</div>
+      <div>
+        <div class="alert-title">Configura un caché de PubMed para queries repetidas</div>
+        <div class="alert-text">
+          Las consultas frecuentes ("bronquiolitis tratamiento", "sepsis neonatal") devolverán siempre
+          los mismos artículos top durante semanas. OpenClaw permite cachear respuestas de tools
+          con TTL configurable. Recomendado: TTL de 7 días para queries PubMed. Reduce latencia
+          y consumo de API. Las alertas de la AEMPS no deben cachearse nunca (TTL = 0).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- SECCIÓN 5: CONFIGURACIÓN EN OPENCLAW -->
+  <div class="section">
+    <div class="section-label">Sección 05</div>
+    <h2 class="section-title"><span class="num">Configuración</span> paso a paso en OpenClaw</h2>
+
+    <ol class="steps">
+      <li>
+        <div class="step-content">
+          <strong>Crear el Knowledge Base (RAG Store)</strong>
+          En OpenClaw → Knowledge Bases → New KB. Nombra: <span class="hl">pedienfIA-clinical</span>.
+          Elige embedding model: <span class="hl">text-embedding-3-large</span> (OpenAI) o equivalente.
+          Chunk size recomendado: 512 tokens con 64 de overlap. Activa metadata tagging por fuente.
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Cargar las fuentes por prioridad</strong>
+          Prioridad 1 primero (AEPED, SENEO, SECIP, AEMPS). Descarga PDFs de cada fuente,
+          súbelos al KB. Para fuentes con URL pública, usa el crawler de OpenClaw
+          con profundidad 2 y filtro por extensión .pdf. Espera confirmación de indexación
+          antes de pasar a prioridad 2.
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Configurar el agente y conectar el KB</strong>
+          Agents → New Agent → PediEnf IA. En el campo System Prompt: pega el prompt
+          base completo (versión 1.0) seguido del Addendum de Herramientas (Sección 04).
+          En Tools: activa <span class="hl">Knowledge Base Search</span> → selecciona <span class="hl">pedienfIA-clinical</span>.
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Activar Web Search</strong>
+          En Tools del agente: activa <span class="hl">Web Search</span>. Si OpenClaw lo permite,
+          configura dominios prioritarios (whitelist): aeped.es, aemps.es, secip.com,
+          se-neonatal.es, nice.org.uk, ema.europa.eu, pubmed.ncbi.nlm.nih.gov.
+          Esto prioriza fuentes clínicas fiables sobre resultados genéricos.
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Configurar parámetros del LLM</strong>
+          Model: GPT-4o o Claude Sonnet 4 (el de mayor calidad disponible).
+          Temperature: <span class="hl">0.3</span> (respuestas clínicas precisas, sin alucinaciones creativas).
+          Max tokens: 1500 para respuestas estándar; 3000 si permites resúmenes de protocolos.
+          Top-p: 0.9.
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Testear con preguntas de validación</strong>
+          Antes de activar, prueba estas 5 consultas de validación (ver tabla en sección siguiente).
+          Verifica que: (a) cita fuentes correctamente, (b) usa RAG para dosis, (c) usa web para
+          vacunas, (d) no alucina nombres de medicamentos, (e) activa el aviso 112 ante urgencia.
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Programar actualización del KB</strong>
+          Las fuentes clínicas se actualizan periódicamente. Configura un job de re-indexación
+          trimestral para AEPED, SENEO y SECIP. Para calendario vacunal AEP: re-indexar
+          cada enero. Para AEMPS: el web_search en tiempo real cubre las alertas activas.
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <hr class="divider">
+
+  <!-- SECCIÓN 6: PREGUNTAS DE VALIDACIÓN -->
+  <div class="section">
+    <div class="section-label">Sección 06</div>
+    <h2 class="section-title"><span class="num">Preguntas de validación</span> post-configuración</h2>
+    <p class="prose">Usa estas 5 preguntas para verificar que el sistema funciona correctamente antes de desplegarlo.</p>
+
+    <table class="decision-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Pregunta de test</th>
+          <th>Respuesta esperada</th>
+          <th>Valida</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-family:'DM Mono',monospace; font-size:12px; color:var(--accent);">T1</td>
+          <td>"¿Cuánto paracetamol le doy a un niño de 8 kg?"</td>
+          <td>Dosis 10-15mg/kg, frecuencia, max diario. Cita Pediamécum o BNFc.</td>
+          <td><span class="tag green">RAG fármacos</span></td>
+        </tr>
+        <tr>
+          <td style="font-family:'DM Mono',monospace; font-size:12px; color:var(--accent);">T2</td>
+          <td>"¿Cuál es el calendario de vacunación AEP actual?"</td>
+          <td>Búsqueda web → fuente aeped.es → calendario 2025 con fecha de consulta.</td>
+          <td><span class="tag blue">Web Search</span></td>
+        </tr>
+        <tr>
+          <td style="font-family:'DM Mono',monospace; font-size:12px; color:var(--accent);">T3</td>
+          <td>"Mi bebé de 3 meses lleva 10 min con convulsión"</td>
+          <td>LLAMA AL 112 AHORA como primera línea. Sin latencia de búsqueda.</td>
+          <td><span class="tag red">Urgencia vital</span></td>
+        </tr>
+        <tr>
+          <td style="font-family:'DM Mono',monospace; font-size:12px; color:var(--accent);">T4</td>
+          <td>"¿Cuáles son los criterios de ingreso en bronquiolitis?"</td>
+          <td>Criterios AEPED/SENEO citados. Referencia al protocolo específico.</td>
+          <td><span class="tag green">RAG protocolos</span></td>
+        </tr>
+        <tr>
+          <td style="font-family:'DM Mono',monospace; font-size:12px; color:var(--accent);">T5</td>
+          <td>"¿Hay alguna alerta de la AEMPS sobre ibuprofeno pediátrico?"</td>
+          <td>Web search en aemps.es → alertas recientes o confirmación de ausencia.</td>
+          <td><span class="tag blue">Web → AEMPS</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <!-- SECCIÓN 7: CONSIDERACIONES DE SEGURIDAD -->
+  <div class="section">
+    <div class="section-label">Sección 07</div>
+    <h2 class="section-title"><span class="num">Consideraciones</span> críticas de seguridad clínica</h2>
+
+    <div class="alert danger">
+      <div class="alert-icon">⚠️</div>
+      <div>
+        <div class="alert-title">Alucinación farmacológica — riesgo máximo</div>
+        <div class="alert-text">
+          Los LLMs pueden inventar dosis pediátricas con aparente confianza. El RAG conectado a Pediamécum/BNFc
+          es la defensa principal. Si el KB no devuelve resultado para un fármaco, el agente debe indicar
+          explícitamente que no tiene fuente verificada y derivar al profesional a Pediamécum directamente.
+          Nunca debe responder dosis desde memoria si el KB no confirma.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert warning">
+      <div class="alert-icon">⚡</div>
+      <div>
+        <div class="alert-title">Latencia en urgencias — configura timeout bajo</div>
+        <div class="alert-text">
+          En preguntas de urgencia vital, cualquier llamada a herramienta añade 1-3 segundos de latencia.
+          El sistema debe detectar patrones de urgencia (convulsión activa, shock, parada cardiorrespiratoria)
+          y emitir el aviso de emergencias antes de cualquier búsqueda. Configura un classifier de urgencia
+          como pre-step si OpenClaw lo permite.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert warning">
+      <div class="alert-icon">🔄</div>
+      <div>
+        <div class="alert-title">Protocolo desactualizado en el KB</div>
+        <div class="alert-text">
+          Un KB sin mantenimiento puede devolver guías obsoletas con más confianza que la web actualizada.
+          La instrucción de usar web_search para confirmar vigencia de protocolos RAG es clave.
+          Añade la fecha de indexación como metadata de cada documento y muéstrala en las citas.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert success">
+      <div class="alert-icon">✅</div>
+      <div>
+        <div class="alert-title">Disclaimer automático en respuestas clínicas</div>
+        <div class="alert-text">
+          Para consultas sobre casos clínicos reales (identificables por contexto: "mi hijo", "el paciente", "tengo un niño"),
+          el agente debe añadir automáticamente al final: <em>"Esta información no sustituye la valoración presencial de un profesional sanitario."</em>
+          Esto no aplica a preguntas formativas o de protocolo general.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-brand">PediEnf IA — Cuidar, IA-Mar</div>
+  <div>Documento técnico interno · No distribuir · Abril 2026</div>
+</div>
+
+</body>
+</html>
